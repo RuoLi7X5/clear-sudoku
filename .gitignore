@@ -1,0 +1,11 @@
+node_modules/
+lib/
+tmp/
+debug-cells/
+debug-output/
+xsudoku-debug/
+xsudoku-debug-cells/
+xsudoku-final/
+xsudoku-output/
+xsudoku-verify/
+*.tsbuildinfo
