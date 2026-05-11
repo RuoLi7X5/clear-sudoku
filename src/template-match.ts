@@ -303,9 +303,9 @@ export function matchBigDigit(pixels: number[][], w: number, h: number, fontFami
     return { digit: 0, confidence: 0 };
   }
 
-  // ── Core mode: 手写+数字+xsudoku, 不混入其他字体 ──
+  // ── Core mode: 手写优先, 数字补充, xSudoku 兜底 ──
 
-  // Pass 1: 数字模板
+  // Pass 1: 数字模板 (自渲染图专用, 高分才采信)
   let bestDigitalScore = -1, bestDigitalDigit = 0;
   for (const tpl of digitalTemplates) {
     if (tpl.pixels.length === 0) continue;
@@ -316,7 +316,21 @@ export function matchBigDigit(pixels: number[][], w: number, h: number, fontFami
     return { digit: bestDigitalDigit, confidence: clamp01((bestDigitalScore + 1) / 2) };
   }
 
-  // Pass 2: Xsudoku
+  // Pass 2: 手写模板 (主力识别, 用户照片核心路径)
+  let bestScore = -1, bestDigit = 0;
+  for (const tpl of bigTemplates) {
+    if (tpl.pixels.length === 0) continue;
+    const score = ncc(pixels, tpl);
+    if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
+  }
+  const bigConf = clamp01((bestScore + 1) / 2);
+
+  // 手写模板有把握 → 直接采信, 不让其他模板抢
+  if (bigConf > 0.5) {
+    return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: bigConf };
+  }
+
+  // Pass 3: 手写无把握, 尝试 xSudoku
   let bestXsudokuScore = -1, bestXsudokuDigit = 0;
   if (xsudokuTemplates.length > 0) {
     for (const tpl of xsudokuTemplates) {
@@ -326,19 +340,7 @@ export function matchBigDigit(pixels: number[][], w: number, h: number, fontFami
     }
   }
   const xsudokuConf = clamp01((bestXsudokuScore + 1) / 2);
-  if (xsudokuConf > 0.64 && xsudokuConf > clamp01((bestDigitalScore + 1) / 2)) {
-    return { digit: bestXsudokuDigit, confidence: xsudokuConf };
-  }
-
-  // Pass 3: 手写
-  let bestScore = -1, bestDigit = 0;
-  for (const tpl of bigTemplates) {
-    if (tpl.pixels.length === 0) continue;
-    const score = ncc(pixels, tpl);
-    if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
-  }
-  const bigConf = clamp01((bestScore + 1) / 2);
-  if (xsudokuConf > 0.64 && xsudokuConf > bigConf) {
+  if (xsudokuConf > 0.64) {
     return { digit: bestXsudokuDigit, confidence: xsudokuConf };
   }
 
