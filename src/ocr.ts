@@ -513,14 +513,10 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         // 已确定格：候选数就是它自己
         cells[r][c].candidates = [cells[r][c].value];
       } else if (cells[r][c].candidates.length > 0) {
-        // OCR 有候选数：保留 OCR 有效候选 + 补充约束网格遗漏 (取并集)
-        const merged = new Set(cells[r][c].candidates.filter(v => constraintGrid[r][c].has(v)));
-        for (const v of constraintGrid[r][c]) merged.add(v);
-        cells[r][c].candidates = [...merged].sort((a, b) => a - b);
-      } else {
-        // OCR 无候选数：用约束网格填充
-        cells[r][c].candidates = [...constraintGrid[r][c]];
+        // OCR 有候选数：只保留约束网格允许的 (过滤违规，不补充用户已删的)
+        cells[r][c].candidates = cells[r][c].candidates.filter(v => constraintGrid[r][c].has(v));
       }
+      // OCR 无候选数 → 保持空，不凭空填充 (尊重图片实际)
     }
   }
 
