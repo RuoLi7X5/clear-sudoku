@@ -209,7 +209,7 @@ function hasInk(data: PixelData, imgW: number, x1: number, y1: number, x2: numbe
       totalCount++;
     }
   }
-  return darkCount / totalCount > 0.01; // 校准后最佳阈值: 1%
+  return darkCount / totalCount > 0.05; // 5%: 过滤格线噪声, 只检测真实候选数墨迹
 }
 
 // ── 灰度提取（供模板匹配使用）──────────────────────────────────────────────────
