@@ -463,6 +463,25 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     let maxDark = 0;
     for (const row of wmPixels) for (const v of row) if (v > maxDark) maxDark = v;
     if (maxDark > 80) {
+      // Ink density: estimate character count to limit ghost matches
+      const proj: number[] = [];
+      for (let x = 0; x < wmW; x++) {
+        let dark = 0;
+        for (let y = 0; y < wmHVal; y++) if (wmPixels[y][x] > 80) dark++;
+        proj.push(dark);
+      }
+      const projMax = Math.max(...proj);
+      let estimatedChars = 0, inChar = false, inkLastEnd = 0;
+      for (let x = 0; x < wmW; x++) {
+        if (proj[x] > projMax * 0.12 && !inChar) { inChar = true; }
+        else if (proj[x] <= projMax * 0.12 && inChar) {
+          if (x - inkLastEnd >= 3) { estimatedChars++; inkLastEnd = x; }
+          inChar = false;
+        }
+      }
+      if (inChar && wmW - inkLastEnd >= 3) estimatedChars++;
+      const maxChars = Math.max(estimatedChars + 1, 6);
+
       // Multi-size sliding window: match against 0-9 + a-z + A-Z templates
       type Match = { x: number; char: string; conf: number };
       const allMatches: Match[] = [];
@@ -483,6 +502,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
       const picked: Match[] = [];
       const used = new Set<number>();
       for (const m of allMatches) {
+        if (picked.length >= maxChars) break;
         let overlaps = false;
         for (let px = m.x; px < m.x + 5; px++) {
           if (used.has(px)) { overlaps = true; break; }
@@ -493,13 +513,6 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         }
       }
       picked.sort((a, b) => a.x - b.x);
-      // Filter ghost trailing matches (conf too low vs best match)
-      if (picked.length > 1) {
-        const bestConf = Math.max(...picked.map(m => m.conf));
-        for (let pi = picked.length - 1; pi >= 0; pi--) {
-          if (picked[pi].conf < bestConf * 0.55) picked.splice(pi, 1);
-        }
-      }
 
       // Build string with dash detection in gaps
       const parts: string[] = [];
