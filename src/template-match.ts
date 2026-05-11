@@ -130,24 +130,7 @@ function loadTemplates(): void {
     }
   }
 
-  // Load watermark lowercase letter templates (a-z) → files: wm_a.json
-  for (let code = 97; code <= 122; code++) {
-    for (const dir of dirs) {
-      const ch = String.fromCharCode(code);
-      const path = join(dir, `wm_${ch}.json`);
-      if (existsSync(path)) {
-        const raw = JSON.parse(readFileSync(path, "utf-8"));
-        const pixels: number[][] = raw.pixels;
-        const darkCount = raw.darkCount || 0;
-        let sum = 0, n = 0;
-        for (const row of pixels) for (const v of row) { sum += v; n++; }
-        watermarkTemplates.push({ digit: code, char: ch, w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
-        break;
-      }
-    }
-  }
-
-  // Load dash template (for gap detection verification)
+  // Load dash template (for gap detection)
   for (const dir of dirs) {
     const path = join(dir, "wm_dash.json");
     if (existsSync(path)) {
@@ -158,23 +141,6 @@ function loadTemplates(): void {
       for (const row of pixels) for (const v of row) { sum += v; n++; }
       watermarkTemplates.push({ digit: 45, char: "-", w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
       break;
-    }
-  }
-
-  // Load watermark uppercase letter templates (A-Z) → files: wmu_A.json
-  for (let code = 65; code <= 90; code++) {
-    for (const dir of dirs) {
-      const ch = String.fromCharCode(code);
-      const path = join(dir, `wmu_${ch}.json`);
-      if (existsSync(path)) {
-        const raw = JSON.parse(readFileSync(path, "utf-8"));
-        const pixels: number[][] = raw.pixels;
-        const darkCount = raw.darkCount || 0;
-        let sum = 0, n = 0;
-        for (const row of pixels) for (const v of row) { sum += v; n++; }
-        watermarkTemplates.push({ digit: code, char: ch, w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
-        break;
-      }
     }
   }
 

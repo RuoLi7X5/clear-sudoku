@@ -130,9 +130,10 @@ async function main() {
       mean.push(row);
     }
 
+    // Use mean template only (1 sample) — more stable than individual samples
     writeFileSync(join(TEMPLATE_DIR, filename), JSON.stringify({
       w: tplW, h: TPL_H, char, pixels: mean, darkCount: meanDc,
-      samples: sampleEntries,
+      samples: [{ pixels: mean, darkCount: meanDc }],
     }, null, 2));
 
     if ((ci + 1) % 10 === 0 || ci === ALL_CHARS.length - 1)

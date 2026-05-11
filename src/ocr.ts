@@ -486,7 +486,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
       type Match = { x: number; char: string; conf: number };
       const allMatches: Match[] = [];
 
-      for (const winW of [8, 10, 12, 14]) {
+      for (const winW of [8, 10, 12]) {
         for (let x = 0; x + winW <= wmW; x += 2) {
           const winPx: number[][] = [];
           for (let y = 0; y < wmHVal; y++) winPx.push(wmPixels[y].slice(x, x + winW));
@@ -513,13 +513,6 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         }
       }
       picked.sort((a, b) => a.x - b.x);
-      // Trim trailing low-confidence chars (common ghost pattern)
-      if (picked.length > 1) {
-        const avgConf = picked.reduce((s, m) => s + m.conf, 0) / picked.length;
-        while (picked.length > 0 && picked[picked.length - 1].conf < avgConf * 0.8) {
-          picked.pop();
-        }
-      }
 
       // Build string with dash detection in gaps
       const parts: string[] = [];
@@ -546,7 +539,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
 
       if (parts.length > 0) {
         watermark = parts.join("");
-        if (!/^[\d\-a-zA-Z]+$/.test(watermark)) watermark = undefined;
+        if (!/^[\d\-]+$/.test(watermark)) watermark = undefined;
         if (watermark) logger?.info(`[OCR] 检测到水印: ${watermark}`);
       }
     }
