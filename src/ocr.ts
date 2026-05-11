@@ -1,13 +1,13 @@
 /**
- * ocr.ts - 数独盘面 OCR 识别管线（纯 JS，不依赖 Canvas）
+ * ocr.ts - 数独盘面 OCR 识别管线（纯 JS，不依赖 Canvas�?
  *
- * 流程：
- *  1. 用 pngjs 解码图片为 RGBA 像素
- *  2. 检测网格线（水平 + 垂直）
+ * 流程�?
+ *  1. �?pngjs 解码图片�?RGBA 像素
+ *  2. 检测网格线（水�?+ 垂直�?
  *  3. 分割 81 个单元格
- *  4. 对每个单元格：模板匹配大数字 → 模板匹配候选数 → 空格
+ *  4. 对每个单元格：模板匹配大数字 �?模板匹配候选数 �?空格
  *
- * 依赖：pngjs（像素解码）、内置 NCC 模板匹配（零外部依赖）
+ * 依赖：pngjs（像素解码）、内�?NCC 模板匹配（零外部依赖�?
  */
 
 import { OCRResult, OCRCell } from "./board";
@@ -30,10 +30,10 @@ function decodeImage(imageBuf: Buffer): { data: Uint8Array; width: number; heigh
     return { data: raw.data, width: raw.width, height: raw.height };
   }
 
-  throw new Error("图片格式不支持，目前仅支持 PNG 和 JPEG 格式");
+  throw new Error("图片格式不支持，目前仅支�?PNG �?JPEG 格式");
 }
 
-// ── 灰度与像素工具 ─────────────────────────────────────────────────────────────
+// ── 灰度与像素工�?─────────────────────────────────────────────────────────────
 
 type PixelData = Uint8Array;
 
@@ -63,7 +63,7 @@ function colDarkness(data: PixelData, imgW: number, imgH: number, x: number, thr
   return count;
 }
 
-// ── 网格线检测 ──────────────────────────────────────────────────────────────────
+// ── 网格线检�?──────────────────────────────────────────────────────────────────
 
 interface GridLines {
   horizontal: number[];
@@ -71,7 +71,7 @@ interface GridLines {
 }
 
 export function detectGridLines(data: PixelData, imgW: number, imgH: number): GridLines {
-  const darkThreshold = 80; // 更敏感的暗像素检测
+  const darkThreshold = 80; // 更敏感的暗像素检�?
 
   // 扫描边界区域找外框（找峰值中心，非边缘）
   function findBorderEdge(scores: Array<{ pos: number; score: number }>, fromStart: boolean): number | null {
@@ -91,7 +91,7 @@ export function detectGridLines(data: PixelData, imgW: number, imgH: number): Gr
     return peakPos;
   }
 
-  // 在方向扫描，收集所有线峰
+  // 在方向扫描，收集所有线�?
   function scanPeaks(scores: Array<{ pos: number; score: number }>): number[] {
     const peaks: number[] = [];
     const threshold = 0.10;
@@ -119,7 +119,7 @@ export function detectGridLines(data: PixelData, imgW: number, imgH: number): Gr
     return result;
   }
 
-  // ── 水平线 ──
+  // ── 水平�?──
   const rowScores = Array.from({ length: imgH }, (_, y) => ({
     pos: y,
     score: rowDarkness(data, imgW, y, darkThreshold) / imgW,
@@ -130,7 +130,7 @@ export function detectGridLines(data: PixelData, imgW: number, imgH: number): Gr
     ? linesFromBorder(topBorder, bottomBorder, imgH)
     : evenLines(10, imgH);
 
-  // ── 垂直线 ──
+  // ── 垂直�?──
   const colScores = Array.from({ length: imgW }, (_, x) => ({
     pos: x,
     score: colDarkness(data, imgW, imgH, x, darkThreshold) / imgH,
@@ -200,6 +200,7 @@ function isBlue(r: number, g: number, b: number, count: number): boolean {
 
 // ── 子格墨迹检测 ──────────────────────────────────────────────────────────────
 
+/** 大数边界检查用 (宽松: 墨迹>1%) */
 function hasInk(data: PixelData, imgW: number, x1: number, y1: number, x2: number, y2: number): boolean {
   let darkCount = 0, totalCount = 0;
   for (let y = Math.round(y1); y <= Math.round(y2); y++) {
@@ -209,7 +210,23 @@ function hasInk(data: PixelData, imgW: number, x1: number, y1: number, x2: numbe
       totalCount++;
     }
   }
-  return darkCount / totalCount > 0.01; // 校准后最佳阈值: 1%
+  return darkCount / totalCount > 0.01;
+}
+
+/** 候选数像素检测: 子格内全扫描, 聚类确认(3+深色像素gray<60), 避免孤立噪点误判 */
+function hasBlackPixel(data: PixelData, imgW: number, x1: number, y1: number, x2: number, y2: number): boolean {
+  const xStart = Math.round(x1), xEnd = Math.round(x2);
+  const yStart = Math.round(y1), yEnd = Math.round(y2);
+  let darkCount = 0;
+  for (let y = yStart; y <= yEnd; y++) {
+    for (let x = xStart; x <= xEnd; x++) {
+      if (grayAt(data, imgW, x, y) < 60) {
+        darkCount++;
+        if (darkCount >= 3) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // ── 灰度提取（供模板匹配使用）──────────────────────────────────────────────────
@@ -225,31 +242,31 @@ export function extractGrayscale(
     const row: number[] = [];
     for (let x = 0; x < w; x++) {
       const gray = grayAt(data, imgW, Math.round(x1 + x), Math.round(y1 + y));
-      row.push(255 - gray); // 反转：暗像素=255(墨迹), 亮=0(白纸)
+      row.push(255 - gray); // 反转：暗像素=255(墨迹), �?0(白纸)
     }
     result.push(row);
   }
   return result;
 }
 
-// ── 主识别函数 ──────────────────────────────────────────────────────────────────
+// ── 主识别函�?──────────────────────────────────────────────────────────────────
 
 export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OCRResult> {
-  logger?.info(`[OCR] 开始识别, 大小: ${(imageBuf.length / 1024).toFixed(1)}KB`);
+  logger?.info(`[OCR] 开始识�? 大小: ${(imageBuf.length / 1024).toFixed(1)}KB`);
 
-  // Step 0: 解码图片（pngjs，无 canvas 依赖）
+  // Step 0: 解码图片（pngjs，无 canvas 依赖�?
   const { data, width, height } = decodeImage(imageBuf);
   logger?.info(`[OCR] 图片解码: ${width}x${height}`);
 
-  // Step 1: 检测网格
+  // Step 1: 检测网�?
   const grid = detectGridLines(data, width, height);
   const hLines = grid.horizontal.slice(0, 10);
   const vLines = grid.vertical.slice(0, 10);
   logger?.info(`[OCR] 网格: H=[${hLines.map(v=>Math.round(v)).join(",")}]`);
   logger?.info(`[OCR]       V=[${vLines.map(v=>Math.round(v)).join(",")}]`);
 
-  // 渲染图识别：检测网格是否接近已知尺寸 (948×948, cellSize≈100, padding≈24)
-  // 如果是，直接使用精确格线位置消除检测抖动
+  // 渲染图识别：检测网格是否接近已知尺�?(948×948, cellSize�?00, padding�?4)
+  // 如果是，直接使用精确格线位置消除检测抖�?
   const avgCellW = (vLines[9] - vLines[0]) / 9;
   const avgCellH = (hLines[9] - hLines[0]) / 9;
   if (Math.abs(width - 948) <= 10 && Math.abs(height - 948) <= 10 &&
@@ -262,16 +279,16 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     logger?.info(`[OCR] 网格已对齐到精确位置 (${width}x${height}, cellSize=${CS})`);
   }
 
-  // Step 2: 初始化结果
+  // Step 2: 初始化结�?
   const cells: OCRCell[][] = Array.from({ length: 9 }, () =>
     Array.from({ length: 9 }, (): OCRCell => ({ value: 0, type: "none", candidates: [] })),
   );
   const confidence: number[][] = Array.from({ length: 9 }, () => Array(9).fill(0));
 
-  // Step 3: 遍历81格 — 模板匹配识别 (core: 手写+数字+xsudoku)
+  // Step 3: 遍历81�?�?模板匹配识别 (core: 手写+数字+xsudoku)
   let bigDigitCount = 0;
   let candidateCellCount = 0;
-  // 保存每格的大数字像素，供第二遍字体切换使用
+  // 保存每格的大数字像素，供第二遍字体切换使�?
   const savedBigPixels: Array<{ r: number; c: number; pixels: number[][]; w: number; h: number }> = [];
 
   for (let r = 0; r < 9; r++) {
@@ -281,7 +298,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
       const cellW = x2 - x1, cellH = y2 - y1;
       if (cellW < 5 || cellH < 5) continue;
 
-      // 大数字：裁剪格子中心区域做 NCC 模板匹配
+      // 大数字：裁剪格子中心区域�?NCC 模板匹配
       const inset = Math.max(2, cellW * 0.12);
       const cx1 = x1 + inset, cy1 = y1 + inset;
       const cx2 = x2 - inset, cy2 = y2 - inset;
@@ -296,12 +313,12 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         savedBigPixels.push({ r, c, pixels: bigPixels, w: bw, h: bh });
         const bigResult = matchBigDigit(bigPixels, bw, bh);
         if (bigResult.confidence > 0.70) {
-          // 高置信度 → 确定为大数字
+          // 高置信度 �?确定为大数字
           isBig = true;
           bigDigit = bigResult.digit;
           bigConf = bigResult.confidence;
         } else if (bigResult.confidence > 0.50) {
-          // 边界情况：检查是否有多个候选数 → 有多候选=候选格，否则=大数字
+          // 边界情况：检查是否有多个候选数 �?有多候�?候选格，否�?大数�?
           let subMatches = 0;
           const subW = cellW / 3, subH = cellH / 3;
           for (let v = 1; v <= 9 && subMatches < 2; v++) {
@@ -334,30 +351,21 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         continue;
       }
 
-      // 候选数：墨迹检测 + 模板匹配双重确认
+      // 候选数：墨迹检�?+ 模板匹配双重确认
       const subW = cellW / 3, subH = cellH / 3;
       const cands: number[] = [];
 
       for (let v = 1; v <= 9; v++) {
         const subR = Math.floor((v - 1) / 3);
         const subC = (v - 1) % 3;
-        const pad = 0.15;
+        const pad = 0.20;
         const sx1 = x1 + subC * subW + subW * pad;
         const sy1 = y1 + subR * subH + subH * pad;
         const sx2 = x1 + (subC + 1) * subW - subW * pad;
         const sy2 = y1 + (subR + 1) * subH - subH * pad;
 
         // 墨迹检测（快速初筛）
-        if (hasInk(data, width, sx1, sy1, sx2, sy2)) {
-          cands.push(v);
-          continue;
-        }
-
-        // 墨迹未检测到 → 模板匹配兜底（捕获浅色/细小候选数）
-        const subPixels = extractGrayscale(data, width, sx1, sy1, sx2, sy2);
-        const sw = Math.round(sx2 - sx1), sh = Math.round(sy2 - sy1);
-        const subMatch = matchSmallDigit(subPixels, sw, sh);
-        if (subMatch.digit === v && subMatch.confidence > 0.50) {
+        if (hasBlackPixel(data, width, sx1, sy1, sx2, sy2)) {
           cands.push(v);
         }
       }
@@ -371,11 +379,11 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     }
   }
 
-  logger?.info(`[OCR] 模板匹配: ${bigDigitCount}大数字, ${candidateCellCount}候选格`);
+  logger?.info(`[OCR] 模板匹配: ${bigDigitCount}大数�? ${candidateCellCount}候选格`);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Step 4: 数独规则校验 — 迭代式确认（高置信度优先）
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════�?
+  // Step 4: 数独规则校验 �?迭代式确认（高置信度优先�?
+  // ══════════════════════════════════════════════════════════════════════════�?
 
   // 收集所有识别结果，按置信度降序排列
   type RecognizedCell = { r: number; c: number; value: number; type: "given" | "deduced" | "none"; conf: number };
@@ -389,7 +397,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
           type: cells[r][c].type,
           conf: confidence[r][c],
         });
-        // 先全部清空
+        // 先全部清�?
         cells[r][c].value = 0;
         cells[r][c].type = "none";
         confidence[r][c] = 0;
@@ -418,9 +426,9 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     }
   }
 
-  // ═════════════════════════════════════════════════════════════
-  // 第二遍: core 模板冲突过多 → 尝试其他字体重识全盘
-  // ═════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════�?
+  // 第二�? core 模板冲突过多 �?尝试其他字体重识全盘
+  // ════════════════════════════════════════════════════════════�?
   if (rejectedCount > 3) {
     const families = getFontFamilies();
     let bestFamily = "";
@@ -486,7 +494,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     }
 
     if (bestCells && bestRejected < rejectedCount) {
-      logger?.info(`[OCR] 字体切换: core(${rejectedCount}冲突) → ${bestFamily}(${bestRejected}冲突)`);
+      logger?.info(`[OCR] 字体切换: core(${rejectedCount}冲突) �?${bestFamily}(${bestRejected}冲突)`);
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
           if (bestCells[r][c].value > 0) {
@@ -510,15 +518,13 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
       if (cells[r][c].value > 0) {
-        // 已确定格：候选数就是它自己
+        // 已确定格：候选数就是它自�?
         cells[r][c].candidates = [cells[r][c].value];
       } else if (cells[r][c].candidates.length > 0) {
-        // OCR 有候选数：与约束网格取交集
+        // OCR 有候选数：与约束网格取交�?
         cells[r][c].candidates = cells[r][c].candidates.filter(v => constraintGrid[r][c].has(v));
-      } else {
-        // OCR 无候选数：用约束网格填充
-        cells[r][c].candidates = [...constraintGrid[r][c]];
       }
+      // OCR 无候选数 → 留空
     }
   }
 
@@ -546,7 +552,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     const wmPixels = extractGrayscale(data, width, wmX1, wmY, wmX2, wmY + wmH);
     const wmW = wmPixels[0]?.length || 0, wmHVal = wmPixels.length;
 
-    // Check if there's any dark content (red text → inverted ≈179 on white 0)
+    // Check if there's any dark content (red text �?inverted �?79 on white 0)
     let maxDark = 0;
     for (const row of wmPixels) for (const v of row) if (v > maxDark) maxDark = v;
     if (maxDark > 80) {
@@ -635,9 +641,9 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
   return { cells, confidence, watermark };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════�?
 // 数独工具函数
-// ═══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════�?
 
 function cellName(r: number, c: number): string {
   return `${String.fromCharCode(65 + r)}${c + 1}`;
@@ -685,5 +691,5 @@ function computeConstraintGrid(values: number[][]): Array<Array<Set<number>>> {
   return grid;
 }
 
-/** 预加载模板（插件初始化时调用） */
+/** 预加载模板（插件初始化时调用�?*/
 export { preloadTemplates } from "./template-match";

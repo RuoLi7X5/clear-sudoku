@@ -155,8 +155,9 @@ export interface RenderOptions {
   showCandidates: boolean;
   watermark?: string;
   largeFontSize?: number;
-  /** 指定渲染字体（默认微软雅黑）。仅用于字体模板生成时切换字体。 */
   fontFamily?: string;
+  /** 在候选格内绘制红色细线9宫格 (调试墨迹检测用) */
+  showSubGrid?: boolean;
 }
 
 export class SudokuRenderer {
@@ -346,6 +347,35 @@ export class SudokuRenderer {
             const sx = c * cellSize + subC * subCellW + subCellW / 2;
             const sy = r * cellSize + subR * subCellH + subCellH / 2;
             ctx2d.fillText(v.toString(), sx, sy);
+          }
+        }
+      }
+    }
+
+    // ── Step 4.5: red sub-grid lines in candidate cells (debug) ──
+    if (options.showSubGrid) {
+      ctx2d.strokeStyle = "#FF0000";
+      ctx2d.lineWidth = 0.5;
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          const givVal = board.givens[r][c];
+          const dedVal = board.deduced[r][c];
+          if (givVal > 0 || dedVal > 0) continue; // 大数格跳过
+          if (board.candidates[r][c].size === 0) continue; // 无候选格跳过
+
+          const cx = c * cellSize, cy = r * cellSize;
+          const sw = cellSize / 3, sh = cellSize / 3;
+          for (let i = 1; i <= 2; i++) {
+            // vertical
+            ctx2d.beginPath();
+            ctx2d.moveTo(cx + i * sw, cy);
+            ctx2d.lineTo(cx + i * sw, cy + cellSize);
+            ctx2d.stroke();
+            // horizontal
+            ctx2d.beginPath();
+            ctx2d.moveTo(cx, cy + i * sh);
+            ctx2d.lineTo(cx + cellSize, cy + i * sh);
+            ctx2d.stroke();
           }
         }
       }
