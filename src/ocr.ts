@@ -11,7 +11,7 @@
  */
 
 import { OCRResult, OCRCell } from "./board";
-import { matchBigDigit, matchSmallDigit, matchWatermarkChar, matchWatermarkDigit, preloadTemplates } from "./template-match";
+import { matchBigDigit, matchSmallDigit, matchWatermarkChar, matchWatermarkDigit, preloadTemplates, getFontFamilies } from "./template-match";
 
 // ── 图片解码（pngjs，零原生依赖）────────────────────────────────────────────────
 
@@ -268,9 +268,11 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
   );
   const confidence: number[][] = Array.from({ length: 9 }, () => Array(9).fill(0));
 
-  // Step 3: 遍历81格 — 模板匹配识别
+  // Step 3: 遍历81格 — 模板匹配识别 (core: 手写+数字+xsudoku)
   let bigDigitCount = 0;
   let candidateCellCount = 0;
+  // 保存每格的大数字像素，供第二遍字体切换使用
+  const savedBigPixels: Array<{ r: number; c: number; pixels: number[][]; w: number; h: number }> = [];
 
   for (let r = 0; r < 9; r++) {
     for (let c = 0; c < 9; c++) {
@@ -291,6 +293,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
       let bigConf = 0;
 
       if (bw >= 5 && bh >= 5) {
+        savedBigPixels.push({ r, c, pixels: bigPixels, w: bw, h: bh });
         const bigResult = matchBigDigit(bigPixels, bw, bh);
         if (bigResult.confidence > 0.70) {
           // 高置信度 → 确定为大数字
@@ -412,6 +415,92 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
       keptCount++;
     } else {
       rejectedCount++;
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // 第二遍: core 模板冲突过多 → 尝试其他字体重识全盘
+  // ═════════════════════════════════════════════════════════════
+  if (rejectedCount > 3) {
+    const families = getFontFamilies();
+    let bestFamily = "";
+    let bestRejected = rejectedCount;
+    let bestCells: OCRCell[][] | null = null;
+    let bestConf: number[][] | null = null;
+
+    for (const family of families) {
+      if (family === "xsudoku") continue; // already tried as core
+      const testCells: OCRCell[][] = Array.from({ length: 9 }, () =>
+        Array.from({ length: 9 }, (): OCRCell => ({ value: 0, type: "none", candidates: [] })),
+      );
+      const testConf: number[][] = Array.from({ length: 9 }, () => Array(9).fill(0));
+
+      // Re-run matchBigDigit with this font family on all saved pixels
+      for (const saved of savedBigPixels) {
+        const { r, c, pixels, w, h } = saved;
+        const result = matchBigDigit(pixels, w, h, family);
+        if (result.confidence > 0.55) {
+          testCells[r][c].value = result.digit;
+          testCells[r][c].type = "given"; // assume given for validation
+          testConf[r][c] = result.confidence;
+        }
+      }
+
+      // Validate: count conflicts
+      const testConfirmed: number[][] = Array.from({ length: 9 }, () => Array(9).fill(0));
+      let testRejected = 0;
+      const recogs2: Array<{ r: number; c: number; value: number; conf: number }> = [];
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (testCells[r][c].value > 0) {
+            recogs2.push({ r, c, value: testCells[r][c].value, conf: testConf[r][c] });
+          }
+        }
+      }
+      recogs2.sort((a, b) => b.conf - a.conf);
+      for (const rec of recogs2) {
+        if (isValidPlacement(testConfirmed, rec.r, rec.c, rec.value)) {
+          testConfirmed[rec.r][rec.c] = rec.value;
+        } else {
+          testRejected++;
+        }
+      }
+
+      // Count how many cells got a digit
+      const digitCount = testConfirmed.flat().filter(v => v > 0).length;
+
+      if (testRejected < bestRejected && digitCount >= keptCount * 0.8) {
+        bestRejected = testRejected;
+        bestFamily = family;
+        // Apply to cells
+        bestCells = Array.from({ length: 9 }, (_, br: number) =>
+          Array.from({ length: 9 }, (_, bc: number) => ({
+            value: testConfirmed[br][bc],
+            type: "given" as const,
+            candidates: [] as number[],
+          })),
+        );
+        bestConf = testConf;
+      }
+      if (testRejected === 0) break; // perfect match, stop searching
+    }
+
+    if (bestCells && bestRejected < rejectedCount) {
+      logger?.info(`[OCR] 字体切换: core(${rejectedCount}冲突) → ${bestFamily}(${bestRejected}冲突)`);
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          if (bestCells[r][c].value > 0) {
+            cells[r][c] = bestCells[r][c];
+            confidence[r][c] = bestConf![r][c];
+          }
+        }
+      }
+      // Rebuild confirmed from best cells
+      for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 9; c++) {
+          confirmed[r][c] = bestCells[r][c].value;
+        }
+      }
     }
   }
 

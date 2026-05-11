@@ -1,0 +1,14 @@
+[
+  "#1 A7: given=3 expected=8",
+  "#2 F9: given=6 expected=8",
+  "#4 F8: given=6 expected=8",
+  "#5 B9: given=5 expected=9",
+  "#11 D5: deduced=8 expected=4",
+  "#11 D8: deduced=4 expected=8",
+  "#12 A9: given=5 expected=9",
+  "#12 G8: deduced=5 expected=9",
+  "#17 F8: given=6 expected=8",
+  "#37 G8: given=6 expected=8",
+  "#39 A9: given=8 expected=3",
+  "#40 H9: given=5 expected=9"
+]

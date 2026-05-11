@@ -264,31 +264,47 @@ export interface MatchResult {
  * @param w - 宽
  * @param h - 高
  */
-export function matchBigDigit(pixels: number[][], w: number, h: number): MatchResult {
+/**
+ * 大数字识别
+ * @param fontFamily 可选：限定使用的字体族 ("core"=手写+数字+xsudoku, 或 fontTemplates 的 key)
+ */
+export function matchBigDigit(pixels: number[][], w: number, h: number, fontFamily?: string): MatchResult {
   loadTemplates();
 
-  // 检查是否有足够暗像素（无内容=不识别）
   let maxVal = 0;
   for (const row of pixels) for (const v of row) if (v > maxVal) maxVal = v;
   if (maxVal < 30) return { digit: 0, confidence: 0 };
 
-  // 场景自动分离：数字模板高分 → 渲染图，低分 → 用户照片
-  // 避免两套模板交叉竞争导致手写数字被数字模板误匹配
+  // If a specific font family is requested, only use those templates
+  if (fontFamily && fontFamily !== "core") {
+    const tpls = fontTemplates.get(fontFamily);
+    if (tpls) {
+      let bestScore = -1, bestDigit = 0;
+      for (const tpl of tpls) {
+        if (tpl.pixels.length === 0) continue;
+        const score = ncc(pixels, tpl);
+        if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
+      }
+      const conf = clamp01((bestScore + 1) / 2);
+      return { digit: conf > 0.55 ? bestDigit : 0, confidence: conf };
+    }
+    return { digit: 0, confidence: 0 };
+  }
 
-  // Pass 1: 数字模板（无偏差）
+  // ── Core mode: 手写+数字+xsudoku, 不混入其他字体 ──
+
+  // Pass 1: 数字模板
   let bestDigitalScore = -1, bestDigitalDigit = 0;
   for (const tpl of digitalTemplates) {
     if (tpl.pixels.length === 0) continue;
     const score = ncc(pixels, tpl);
     if (score > bestDigitalScore) { bestDigitalScore = score; bestDigitalDigit = tpl.digit; }
   }
-
-  // 数字模板高分 → 确定是自渲染图，直接采信
   if (bestDigitalScore > 0.80) {
     return { digit: bestDigitalDigit, confidence: clamp01((bestDigitalScore + 1) / 2) };
   }
 
-  // Pass 2: Xsudoku 模板（适配 xsudoku 字体）
+  // Pass 2: Xsudoku
   let bestXsudokuScore = -1, bestXsudokuDigit = 0;
   if (xsudokuTemplates.length > 0) {
     for (const tpl of xsudokuTemplates) {
@@ -297,46 +313,30 @@ export function matchBigDigit(pixels: number[][], w: number, h: number): MatchRe
       if (score > bestXsudokuScore) { bestXsudokuScore = score; bestXsudokuDigit = tpl.digit; }
     }
   }
-
-  // Xsudoku 高分且超过 digital → 采信 (最优阈值 0.64, 零误报)
   const xsudokuConf = clamp01((bestXsudokuScore + 1) / 2);
   if (xsudokuConf > 0.64 && xsudokuConf > clamp01((bestDigitalScore + 1) / 2)) {
     return { digit: bestXsudokuDigit, confidence: xsudokuConf };
   }
 
-  // Pass 2.5: Auto-discovered font templates (simhei, kaiti, etc.)
-  let bestFontScore = -1, bestFontDigit = 0;
-  for (const [, tpls] of fontTemplates) {
-    for (const tpl of tpls) {
-      if (tpl.pixels.length === 0) continue;
-      const score = ncc(pixels, tpl);
-      if (score > bestFontScore) { bestFontScore = score; bestFontDigit = tpl.digit; }
-    }
-  }
-  const fontConf = clamp01((bestFontScore + 1) / 2);
-  if (fontConf > 0.64 && fontConf > xsudokuConf && fontConf > clamp01((bestDigitalScore + 1) / 2)) {
-    return { digit: bestFontDigit, confidence: fontConf };
-  }
-
-  // Pass 3: 用户照片 → 只用手写模板
-  let bestDigit = 0, bestScore = -1;
+  // Pass 3: 手写
+  let bestScore = -1, bestDigit = 0;
   for (const tpl of bigTemplates) {
     if (tpl.pixels.length === 0) continue;
     const score = ncc(pixels, tpl);
     if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
   }
-
   const bigConf = clamp01((bestScore + 1) / 2);
-  // xsudoku 偏低分但仍优于手写 → 采信 xsudoku
   if (xsudokuConf > 0.64 && xsudokuConf > bigConf) {
     return { digit: bestXsudokuDigit, confidence: xsudokuConf };
   }
-  // font template 优于手写 → 采信
-  if (fontConf > 0.64 && fontConf > bigConf) {
-    return { digit: bestFontDigit, confidence: fontConf };
-  }
 
   return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: bigConf };
+}
+
+/** Get list of available font family names */
+export function getFontFamilies(): string[] {
+  loadTemplates();
+  return [...fontTemplates.keys()];
 }
 
 /**
