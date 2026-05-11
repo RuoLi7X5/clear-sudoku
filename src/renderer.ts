@@ -155,6 +155,8 @@ export interface RenderOptions {
   showCandidates: boolean;
   watermark?: string;
   largeFontSize?: number;
+  /** 指定渲染字体（默认微软雅黑）。仅用于字体模板生成时切换字体。 */
+  fontFamily?: string;
 }
 
 export class SudokuRenderer {
@@ -304,8 +306,9 @@ export class SudokuRenderer {
 
     // ── Step 4: render numbers ──
     const largeSize = options.largeFontSize || 77;
-    const largeFont = `${largeSize}px ${CJK_FONT_STACK}`;
-    const smallFont = `25px ${CJK_FONT_STACK}`;
+    const fontStack = options.fontFamily || CJK_FONT_STACK;
+    const largeFont = `${largeSize}px ${fontStack}`;
+    const smallFont = `25px ${fontStack}`;
 
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {

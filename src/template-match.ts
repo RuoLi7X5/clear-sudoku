@@ -4,7 +4,7 @@
  * 替换 tesseract.js：零外部依赖，极快，纯像素运算
  * 支持大数字和候选数两种尺寸
  */
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, readdirSync } from "fs";
 import { join } from "path";
 
 // ── 模板数据结构 ──────────────────────────────────────────────────────────────────
@@ -25,6 +25,9 @@ const smallTemplates: DigitTemplate[] = [];
 const digitalTemplates: DigitTemplate[] = [];
 const xsudokuTemplates: DigitTemplate[] = [];
 const watermarkTemplates: DigitTemplate[] = [];
+/** Auto-discovered font templates (key = font prefix like "simhei", "kaiti") */
+const fontTemplates: Map<string, DigitTemplate[]> = new Map();
+const KNOWN_PREFIXES = new Set(["big", "small", "digital", "xsudoku", "wm"]);
 
 let templatesLoaded = false;
 
@@ -125,6 +128,38 @@ function loadTemplates(): void {
         break;
       }
     }
+  }
+
+  // Auto-discover font templates from templates/ directory
+  // Pattern: {prefix}_{digit}.json where digit is 1-9
+  for (const dir of dirs) {
+    try {
+      const files = readdirSync(dir);
+      const fontPrefixes = new Set<string>();
+      for (const f of files) {
+        const m = f.match(/^(.+)_(\d)\.json$/);
+        if (m && !KNOWN_PREFIXES.has(m[1])) {
+          fontPrefixes.add(m[1]);
+        }
+      }
+      for (const prefix of fontPrefixes) {
+        const tpls: DigitTemplate[] = [];
+        for (let digit = 1; digit <= 9; digit++) {
+          const path = join(dir, `${prefix}_${digit}.json`);
+          if (existsSync(path)) {
+            const raw = JSON.parse(readFileSync(path, "utf-8"));
+            const entries = raw.samples || [{ pixels: raw.pixels, darkCount: raw.darkCount || 0 }];
+            for (const entry of entries) {
+              const pixels: number[][] = entry.pixels;
+              let sum = 0, n = 0;
+              for (const row of pixels) for (const v of row) { sum += v; n++; }
+              tpls.push({ digit, w: raw.w, h: raw.h, pixels, darkCount: entry.darkCount || 0, mean: n > 0 ? sum / n : 0 });
+            }
+          }
+        }
+        if (tpls.length > 0) fontTemplates.set(prefix, tpls);
+      }
+    } catch { /* dir may not exist */ }
   }
 
   templatesLoaded = true;
@@ -255,6 +290,20 @@ export function matchBigDigit(pixels: number[][], w: number, h: number): MatchRe
     return { digit: bestXsudokuDigit, confidence: xsudokuConf };
   }
 
+  // Pass 2.5: Auto-discovered font templates (simhei, kaiti, etc.)
+  let bestFontScore = -1, bestFontDigit = 0;
+  for (const [, tpls] of fontTemplates) {
+    for (const tpl of tpls) {
+      if (tpl.pixels.length === 0) continue;
+      const score = ncc(pixels, tpl);
+      if (score > bestFontScore) { bestFontScore = score; bestFontDigit = tpl.digit; }
+    }
+  }
+  const fontConf = clamp01((bestFontScore + 1) / 2);
+  if (fontConf > 0.64 && fontConf > xsudokuConf && fontConf > clamp01((bestDigitalScore + 1) / 2)) {
+    return { digit: bestFontDigit, confidence: fontConf };
+  }
+
   // Pass 3: 用户照片 → 只用手写模板
   let bestDigit = 0, bestScore = -1;
   for (const tpl of bigTemplates) {
@@ -267,6 +316,10 @@ export function matchBigDigit(pixels: number[][], w: number, h: number): MatchRe
   // xsudoku 偏低分但仍优于手写 → 采信 xsudoku
   if (xsudokuConf > 0.64 && xsudokuConf > bigConf) {
     return { digit: bestXsudokuDigit, confidence: xsudokuConf };
+  }
+  // font template 优于手写 → 采信
+  if (fontConf > 0.64 && fontConf > bigConf) {
+    return { digit: bestFontDigit, confidence: fontConf };
   }
 
   return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: bigConf };
