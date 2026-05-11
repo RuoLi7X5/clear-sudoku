@@ -209,7 +209,7 @@ function hasInk(data: PixelData, imgW: number, x1: number, y1: number, x2: numbe
       totalCount++;
     }
   }
-  return darkCount / totalCount > 0.05; // 5%: 过滤格线噪声, 只检测真实候选数墨迹
+  return darkCount / totalCount > 0.12;
 }
 
 // ── 灰度提取（供模板匹配使用）──────────────────────────────────────────────────
@@ -334,7 +334,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         continue;
       }
 
-      // 候选数：墨迹检测 + 模板匹配双重确认
+      // 候选数：模板匹配为主 (识别数字形状), 墨迹检测为辅 (高阈值兜底)
       const subW = cellW / 3, subH = cellH / 3;
       const cands: number[] = [];
 
@@ -347,17 +347,17 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         const sx2 = x1 + (subC + 1) * subW - subW * pad;
         const sy2 = y1 + (subR + 1) * subH - subH * pad;
 
-        // 墨迹检测（快速初筛）
-        if (hasInk(data, width, sx1, sy1, sx2, sy2)) {
+        // 模板匹配：识别数字形状 (过滤擦除残留)
+        const subPixels = extractGrayscale(data, width, sx1, sy1, sx2, sy2);
+        const sw = Math.round(sx2 - sx1), sh = Math.round(sy2 - sy1);
+        const subMatch = matchSmallDigit(subPixels, sw, sh);
+        if (subMatch.digit === v && subMatch.confidence > 0.60) {
           cands.push(v);
           continue;
         }
 
-        // 墨迹未检测到 → 模板匹配兜底（捕获浅色/细小候选数）
-        const subPixels = extractGrayscale(data, width, sx1, sy1, sx2, sy2);
-        const sw = Math.round(sx2 - sx1), sh = Math.round(sy2 - sy1);
-        const subMatch = matchSmallDigit(subPixels, sw, sh);
-        if (subMatch.digit === v && subMatch.confidence > 0.50) {
+        // 模板未匹配 → 墨迹高阈值兜底 (15%, 仅清晰墨迹)
+        if (hasInk(data, width, sx1, sy1, sx2, sy2)) {
           cands.push(v);
         }
       }
