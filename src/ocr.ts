@@ -209,7 +209,7 @@ function hasInk(data: PixelData, imgW: number, x1: number, y1: number, x2: numbe
       totalCount++;
     }
   }
-  return darkCount / totalCount > 0.12;
+  return darkCount / totalCount > 0.01; // 校准后最佳阈值: 1%
 }
 
 // ── 灰度提取（供模板匹配使用）──────────────────────────────────────────────────
@@ -334,7 +334,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         continue;
       }
 
-      // 候选数：模板匹配为主 (识别数字形状), 墨迹检测为辅 (高阈值兜底)
+      // 候选数：墨迹检测 + 模板匹配双重确认
       const subW = cellW / 3, subH = cellH / 3;
       const cands: number[] = [];
 
@@ -347,17 +347,17 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         const sx2 = x1 + (subC + 1) * subW - subW * pad;
         const sy2 = y1 + (subR + 1) * subH - subH * pad;
 
-        // 模板匹配：识别数字形状 (过滤擦除残留)
-        const subPixels = extractGrayscale(data, width, sx1, sy1, sx2, sy2);
-        const sw = Math.round(sx2 - sx1), sh = Math.round(sy2 - sy1);
-        const subMatch = matchSmallDigit(subPixels, sw, sh);
-        if (subMatch.digit === v && subMatch.confidence > 0.60) {
+        // 墨迹检测（快速初筛）
+        if (hasInk(data, width, sx1, sy1, sx2, sy2)) {
           cands.push(v);
           continue;
         }
 
-        // 模板未匹配 → 墨迹高阈值兜底 (15%, 仅清晰墨迹)
-        if (hasInk(data, width, sx1, sy1, sx2, sy2)) {
+        // 墨迹未检测到 → 模板匹配兜底（捕获浅色/细小候选数）
+        const subPixels = extractGrayscale(data, width, sx1, sy1, sx2, sy2);
+        const sw = Math.round(sx2 - sx1), sh = Math.round(sy2 - sy1);
+        const subMatch = matchSmallDigit(subPixels, sw, sh);
+        if (subMatch.digit === v && subMatch.confidence > 0.50) {
           cands.push(v);
         }
       }
@@ -513,10 +513,12 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         // 已确定格：候选数就是它自己
         cells[r][c].candidates = [cells[r][c].value];
       } else if (cells[r][c].candidates.length > 0) {
-        // OCR 有候选数：只保留约束网格允许的 (过滤违规，不补充用户已删的)
+        // OCR 有候选数：与约束网格取交集
         cells[r][c].candidates = cells[r][c].candidates.filter(v => constraintGrid[r][c].has(v));
+      } else {
+        // OCR 无候选数：用约束网格填充
+        cells[r][c].candidates = [...constraintGrid[r][c]];
       }
-      // OCR 无候选数 → 保持空，不凭空填充 (尊重图片实际)
     }
   }
 
