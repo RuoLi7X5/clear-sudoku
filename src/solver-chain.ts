@@ -112,15 +112,16 @@ function findHiddenSingleInUnit(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// L2: Pointing (区块排除)
+// L2: Locked Candidates — Pointing + Claiming
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface PointingResult {
+interface LockedCandResult {
   desc: string;
   elimCells: Array<[number, number]>;
 }
 
-function applyPointingPairs(board: BoardState): PointingResult | null {
+/** Pointing: 宫内v仅限同一行/列 → 该行/列宫外排除v */
+function applyPointing(board: BoardState): LockedCandResult | null {
   for (let br = 0; br < 9; br += 3) {
     for (let bc = 0; bc < 9; bc += 3) {
       for (let v = 1; v <= 9; v++) {
@@ -140,7 +141,6 @@ function applyPointingPairs(board: BoardState): PointingResult | null {
         if (cells.length < 2) continue;
         const bNum = boxNumber(br, bc);
 
-        // 同一行：从该行宫外的格删除v
         if (rows.size === 1) {
           const row = [...rows][0];
           const elimCells: Array<[number, number]> = [];
@@ -150,14 +150,10 @@ function applyPointingPairs(board: BoardState): PointingResult | null {
             }
           }
           if (elimCells.length > 0) {
-            return {
-              desc: `第${bNum}宫数字${v}仅限第${rowLabel(row)}行 → 该行宫外${elimCells.length}格排除${v}`,
-              elimCells,
-            };
+            return { desc: `第${bNum}宫数字${v}仅限第${rowLabel(row)}行 → 该行宫外${elimCells.length}格排除${v}`, elimCells };
           }
         }
 
-        // 同一列：从该列宫外的格删除v
         if (cols.size === 1) {
           const col = [...cols][0];
           const elimCells: Array<[number, number]> = [];
@@ -167,15 +163,81 @@ function applyPointingPairs(board: BoardState): PointingResult | null {
             }
           }
           if (elimCells.length > 0) {
-            return {
-              desc: `第${bNum}宫数字${v}仅限第${col + 1}列 → 该列宫外${elimCells.length}格排除${v}`,
-              elimCells,
-            };
+            return { desc: `第${bNum}宫数字${v}仅限第${col + 1}列 → 该列宫外${elimCells.length}格排除${v}`, elimCells };
           }
         }
       }
     }
   }
+  return null;
+}
+
+/** Claiming: 行/列内v仅限同一宫 → 该宫其余格排除v */
+function applyClaiming(board: BoardState): LockedCandResult | null {
+  // Check all 9 rows
+  for (let r = 0; r < 9; r++) {
+    for (let v = 1; v <= 9; v++) {
+      // Find which boxes v appears in within this row
+      const boxes = new Set<number>();
+      const cells: Array<[number, number]> = [];
+      for (let c = 0; c < 9; c++) {
+        if (board.getValue(r, c) === 0 && board.candidates[r][c].has(v)) {
+          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+          boxes.add(b);
+          cells.push([r, c]);
+        }
+      }
+      if (boxes.size !== 1 || cells.length < 2) continue;
+      const b = [...boxes][0];
+      const br = Math.floor(b / 3) * 3, bc = (b % 3) * 3;
+
+      // Eliminate v from other cells in this box (different row)
+      const elimCells: Array<[number, number]> = [];
+      for (let dr = 0; dr < 3; dr++) {
+        for (let dc = 0; dc < 3; dc++) {
+          const rr = br + dr, cc = bc + dc;
+          if (rr !== r && board.getValue(rr, cc) === 0 && board.candidates[rr][cc].delete(v)) {
+            elimCells.push([rr, cc]);
+          }
+        }
+      }
+      if (elimCells.length > 0) {
+        return { desc: `第${rowLabel(r)}行数字${v}仅限第${b + 1}宫 → 宫内其余${elimCells.length}格排除${v}`, elimCells };
+      }
+    }
+  }
+
+  // Check all 9 columns
+  for (let c = 0; c < 9; c++) {
+    for (let v = 1; v <= 9; v++) {
+      const boxes = new Set<number>();
+      const cells: Array<[number, number]> = [];
+      for (let r = 0; r < 9; r++) {
+        if (board.getValue(r, c) === 0 && board.candidates[r][c].has(v)) {
+          const b = Math.floor(r / 3) * 3 + Math.floor(c / 3);
+          boxes.add(b);
+          cells.push([r, c]);
+        }
+      }
+      if (boxes.size !== 1 || cells.length < 2) continue;
+      const b = [...boxes][0];
+      const br = Math.floor(b / 3) * 3, bc = (b % 3) * 3;
+
+      const elimCells: Array<[number, number]> = [];
+      for (let dr = 0; dr < 3; dr++) {
+        for (let dc = 0; dc < 3; dc++) {
+          const rr = br + dr, cc = bc + dc;
+          if (cc !== c && board.getValue(rr, cc) === 0 && board.candidates[rr][cc].delete(v)) {
+            elimCells.push([rr, cc]);
+          }
+        }
+      }
+      if (elimCells.length > 0) {
+        return { desc: `第${c + 1}列数字${v}仅限第${b + 1}宫 → 宫内其余${elimCells.length}格排除${v}`, elimCells };
+      }
+    }
+  }
+
   return null;
 }
 
@@ -321,28 +383,41 @@ export function applyIntuitiveChain(board: BoardState): ChainResult {
       }
     }
 
-    // --- 2. Hidden Single (隐性唯余，所有27个单元) ---
-    for (const unit of units) {
-      const hs = findHiddenSingleInUnit(board, unit.cells);
-      if (hs) {
-        const affected = board.assignCell(hs.r, hs.c, hs.v);
-        if (affected > 0) {
-          newResolutions.push({ row: hs.r, col: hs.c, value: hs.v });
-          descriptions.push(`${cellLabel(hs.r, hs.c)}=${hs.v}(排除/${unit.name})`);
-          madeProgress = true;
+    // --- 2. Hidden Single (隐性唯余，所有27个单元，穷举) ---
+    let foundHS = true;
+    while (foundHS) {
+      foundHS = false;
+      for (const unit of units) {
+        const hs = findHiddenSingleInUnit(board, unit.cells);
+        if (hs) {
+          const affected = board.assignCell(hs.r, hs.c, hs.v);
+          if (affected > 0) {
+            newResolutions.push({ row: hs.r, col: hs.c, value: hs.v });
+            descriptions.push(`${cellLabel(hs.r, hs.c)}=${hs.v}(排除/${unit.name})`);
+            madeProgress = true;
+            foundHS = true;
+          }
         }
-        break; // 一次只做一个，让naked single有机会被触发
       }
     }
 
-    // --- 3. Pointing (区块排除) — 逐次应用，每次一个指向对 ---
-    for (let p = 0; p < 9; p++) {
-      const pointing = applyPointingPairs(board);
-      if (pointing) {
-        descriptions.push(pointing.desc);
+    // --- 3. Locked Candidates: Pointing + Claiming ---
+    for (let p = 0; p < 18; p++) {
+      const pointing = applyPointing(board);
+      if (pointing) { descriptions.push(pointing.desc); madeProgress = true; continue; }
+      const claiming = applyClaiming(board);
+      if (claiming) { descriptions.push(claiming.desc); madeProgress = true; continue; }
+      break;
+    }
+
+    // Check for new singles after candidate eliminations
+    const postLockNaked = board.findNakedSingles();
+    for (const { r, c, value } of postLockNaked) {
+      const affected = board.assignCell(r, c, value);
+      if (affected > 0) {
+        newResolutions.push({ row: r, col: c, value });
+        descriptions.push(`${cellLabel(r, c)}=${value}(唯余)`);
         madeProgress = true;
-      } else {
-        break; // 无更多指向对
       }
     }
 
@@ -365,6 +440,17 @@ export function applyIntuitiveChain(board: BoardState): ChainResult {
           descriptions.push(`${unit.name}: ${hs.desc}`);
           madeProgress = true;
         }
+      }
+    }
+
+    // After sets eliminate candidates, check for new singles immediately
+    const postSetNaked = board.findNakedSingles();
+    for (const { r, c, value } of postSetNaked) {
+      const affected = board.assignCell(r, c, value);
+      if (affected > 0) {
+        newResolutions.push({ row: r, col: c, value });
+        descriptions.push(`${cellLabel(r, c)}=${value}(唯余)`);
+        madeProgress = true;
       }
     }
 
