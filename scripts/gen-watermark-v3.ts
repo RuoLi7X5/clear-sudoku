@@ -60,8 +60,8 @@ async function main() {
     const { char, filename } = ALL_CHARS[ci];
     const samples: number[][][] = [];
 
-    // Render this char as watermark on 10 different puzzles
-    for (let pi = 0; pi < 10; pi++) {
+    // Render this char as watermark on 20 different puzzles
+    for (let pi = 0; pi < 20; pi++) {
       const answer = ANSWERS[pi];
       const givens: number[][] = Array.from({ length: 9 }, () => Array(9).fill(0));
       const candidates: Array<Array<Set<number>>> = Array.from({ length: 9 }, () =>

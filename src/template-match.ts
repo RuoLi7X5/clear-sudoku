@@ -147,7 +147,7 @@ function loadTemplates(): void {
     }
   }
 
-  // Load dash template (for gap detection verification, not sliding window)
+  // Load dash template (for gap detection verification)
   for (const dir of dirs) {
     const path = join(dir, "wm_dash.json");
     if (existsSync(path)) {
