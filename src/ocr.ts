@@ -480,7 +480,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
         }
       }
       if (inChar && wmW - inkLastEnd >= 3) estimatedChars++;
-      const maxChars = Math.max(estimatedChars + 1, 6);
+      const maxChars = Math.max(estimatedChars + 1, 3);
 
       // Multi-size sliding window: match against 0-9 + a-z + A-Z templates
       type Match = { x: number; char: string; conf: number };
