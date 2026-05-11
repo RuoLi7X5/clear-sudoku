@@ -275,6 +275,18 @@ export function matchBigDigit(pixels: number[][], w: number, h: number, fontFami
   for (const row of pixels) for (const v of row) if (v > maxVal) maxVal = v;
   if (maxVal < 30) return { digit: 0, confidence: 0 };
 
+  // If "big" requested, only use big (handwritten) templates
+  if (fontFamily === "big") {
+    let bestScore = -1, bestDigit = 0;
+    for (const tpl of bigTemplates) {
+      if (tpl.pixels.length === 0) continue;
+      const score = ncc(pixels, tpl);
+      if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
+    }
+    const conf = clamp01((bestScore + 1) / 2);
+    return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: conf };
+  }
+
   // If a specific font family is requested, only use those templates
   if (fontFamily && fontFamily !== "core") {
     const tpls = fontTemplates.get(fontFamily);

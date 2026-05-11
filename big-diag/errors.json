@@ -1,0 +1,266 @@
+[
+  {
+    "puzzle": 1,
+    "cell": "A3",
+    "expected": 6,
+    "got": 4
+  },
+  {
+    "puzzle": 1,
+    "cell": "A7",
+    "expected": 8,
+    "got": 3
+  },
+  {
+    "puzzle": 1,
+    "cell": "B7",
+    "expected": 2,
+    "got": 1
+  },
+  {
+    "puzzle": 1,
+    "cell": "B8",
+    "expected": 7,
+    "got": 1
+  },
+  {
+    "puzzle": 1,
+    "cell": "C8",
+    "expected": 6,
+    "got": 0
+  },
+  {
+    "puzzle": 1,
+    "cell": "D1",
+    "expected": 6,
+    "got": 4
+  },
+  {
+    "puzzle": 1,
+    "cell": "D8",
+    "expected": 3,
+    "got": 1
+  },
+  {
+    "puzzle": 1,
+    "cell": "F4",
+    "expected": 2,
+    "got": 7
+  },
+  {
+    "puzzle": 1,
+    "cell": "F7",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 1,
+    "cell": "G3",
+    "expected": 2,
+    "got": 7
+  },
+  {
+    "puzzle": 1,
+    "cell": "G5",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 1,
+    "cell": "H4",
+    "expected": 9,
+    "got": 8
+  },
+  {
+    "puzzle": 1,
+    "cell": "H9",
+    "expected": 7,
+    "got": 0
+  },
+  {
+    "puzzle": 1,
+    "cell": "I6",
+    "expected": 6,
+    "got": 0
+  },
+  {
+    "puzzle": 1,
+    "cell": "I8",
+    "expected": 2,
+    "got": 1
+  },
+  {
+    "puzzle": 2,
+    "cell": "F9",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 2,
+    "cell": "I9",
+    "expected": 5,
+    "got": 6
+  },
+  {
+    "puzzle": 4,
+    "cell": "F8",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 4,
+    "cell": "H9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 5,
+    "cell": "B9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 6,
+    "cell": "C9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 6,
+    "cell": "F8",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 6,
+    "cell": "H8",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 11,
+    "cell": "D5",
+    "expected": 4,
+    "got": 8
+  },
+  {
+    "puzzle": 11,
+    "cell": "D8",
+    "expected": 8,
+    "got": 4
+  },
+  {
+    "puzzle": 12,
+    "cell": "A9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 12,
+    "cell": "G8",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 12,
+    "cell": "I9",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 13,
+    "cell": "B9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 17,
+    "cell": "F8",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 25,
+    "cell": "B9",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 25,
+    "cell": "C9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 25,
+    "cell": "F8",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 25,
+    "cell": "H9",
+    "expected": 5,
+    "got": 6
+  },
+  {
+    "puzzle": 29,
+    "cell": "F4",
+    "expected": 1,
+    "got": 0
+  },
+  {
+    "puzzle": 31,
+    "cell": "B9",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 31,
+    "cell": "H8",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 36,
+    "cell": "A9",
+    "expected": 9,
+    "got": 5
+  },
+  {
+    "puzzle": 36,
+    "cell": "G9",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 37,
+    "cell": "F4",
+    "expected": 7,
+    "got": 0
+  },
+  {
+    "puzzle": 37,
+    "cell": "G8",
+    "expected": 8,
+    "got": 6
+  },
+  {
+    "puzzle": 39,
+    "cell": "A9",
+    "expected": 3,
+    "got": 8
+  },
+  {
+    "puzzle": 39,
+    "cell": "H9",
+    "expected": 5,
+    "got": 6
+  },
+  {
+    "puzzle": 40,
+    "cell": "H9",
+    "expected": 9,
+    "got": 5
+  }
+]
