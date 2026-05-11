@@ -11,12 +11,12 @@ import { join } from "path";
 
 interface DigitTemplate {
   digit: number;
+  /** 字符标识（水印字母模板用，如 "a", "A"） */
+  char?: string;
   w: number;
   h: number;
   pixels: number[][];  // 0=白, 255=黑
-  /** 暗像素总数（预计算加速NCC） */
   darkCount: number;
-  /** 像素均值（预计算加速NCC） */
   mean: number;
 }
 
@@ -27,7 +27,7 @@ const xsudokuTemplates: DigitTemplate[] = [];
 const watermarkTemplates: DigitTemplate[] = [];
 /** Auto-discovered font templates (key = font prefix like "simhei", "kaiti") */
 const fontTemplates: Map<string, DigitTemplate[]> = new Map();
-const KNOWN_PREFIXES = new Set(["big", "small", "digital", "xsudoku", "wm"]);
+const KNOWN_PREFIXES = new Set(["big", "small", "digital", "xsudoku", "wm", "wmu"]);
 
 let templatesLoaded = false;
 
@@ -114,7 +114,7 @@ function loadTemplates(): void {
     }
   }
 
-  // Load watermark templates (16px red system-font digits)
+  // Load watermark digit templates (0-9)
   for (let digit = 0; digit <= 9; digit++) {
     for (const dir of dirs) {
       const path = join(dir, `wm_${digit}.json`);
@@ -125,6 +125,54 @@ function loadTemplates(): void {
         let sum = 0, n = 0;
         for (const row of pixels) for (const v of row) { sum += v; n++; }
         watermarkTemplates.push({ digit, w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
+        break;
+      }
+    }
+  }
+
+  // Load watermark lowercase letter templates (a-z) → files: wm_a.json
+  for (let code = 97; code <= 122; code++) {
+    for (const dir of dirs) {
+      const ch = String.fromCharCode(code);
+      const path = join(dir, `wm_${ch}.json`);
+      if (existsSync(path)) {
+        const raw = JSON.parse(readFileSync(path, "utf-8"));
+        const pixels: number[][] = raw.pixels;
+        const darkCount = raw.darkCount || 0;
+        let sum = 0, n = 0;
+        for (const row of pixels) for (const v of row) { sum += v; n++; }
+        watermarkTemplates.push({ digit: code, char: ch, w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
+        break;
+      }
+    }
+  }
+
+  // Load dash template
+  for (const dir of dirs) {
+    const path = join(dir, "wm_dash.json");
+    if (existsSync(path)) {
+      const raw = JSON.parse(readFileSync(path, "utf-8"));
+      const pixels: number[][] = raw.pixels;
+      const darkCount = raw.darkCount || 0;
+      let sum = 0, n = 0;
+      for (const row of pixels) for (const v of row) { sum += v; n++; }
+      watermarkTemplates.push({ digit: 45, char: "-", w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
+      break;
+    }
+  }
+
+  // Load watermark uppercase letter templates (A-Z) → files: wmu_A.json
+  for (let code = 65; code <= 90; code++) {
+    for (const dir of dirs) {
+      const ch = String.fromCharCode(code);
+      const path = join(dir, `wmu_${ch}.json`);
+      if (existsSync(path)) {
+        const raw = JSON.parse(readFileSync(path, "utf-8"));
+        const pixels: number[][] = raw.pixels;
+        const darkCount = raw.darkCount || 0;
+        let sum = 0, n = 0;
+        for (const row of pixels) for (const v of row) { sum += v; n++; }
+        watermarkTemplates.push({ digit: code, char: ch, w: raw.w, h: raw.h, pixels, darkCount, mean: sum / n });
         break;
       }
     }
@@ -362,24 +410,40 @@ export function preloadTemplates(): void {
   loadTemplates();
 }
 
+export interface WatermarkMatchResult {
+  /** 匹配到的字符 (0-9, a-z, A-Z)，空串=无匹配 */
+  char: string;
+  confidence: number;
+}
+
 /**
- * 水印数字识别 — 使用16px红色水印专用模板
+ * 水印字符识别 — 匹配 0-9 + a-z + A-Z (62个字符)
  */
-export function matchWatermarkDigit(pixels: number[][], w: number, h: number): MatchResult {
+export function matchWatermarkChar(pixels: number[][], w: number, h: number): WatermarkMatchResult {
   loadTemplates();
 
   let maxVal = 0;
   for (const row of pixels) for (const v of row) if (v > maxVal) maxVal = v;
-  if (maxVal < 30) return { digit: 0, confidence: 0 };
+  if (maxVal < 30) return { char: "", confidence: 0 };
 
-  let bestDigit = 0, bestScore = -1;
+  let bestChar = "", bestScore = -1;
   for (const tpl of watermarkTemplates) {
     if (tpl.pixels.length === 0) continue;
     const score = ncc(pixels, tpl);
-    if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
+    if (score > bestScore) {
+      bestScore = score;
+      bestChar = tpl.char || String(tpl.digit);
+    }
   }
 
-  return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: clamp01((bestScore + 1) / 2) };
+  return { char: bestScore > 0.1 ? bestChar : "", confidence: clamp01((bestScore + 1) / 2) };
+}
+
+/** @deprecated 使用 matchWatermarkChar 代替 */
+export function matchWatermarkDigit(pixels: number[][], w: number, h: number): MatchResult {
+  const result = matchWatermarkChar(pixels, w, h);
+  const d = parseInt(result.char, 10);
+  return { digit: isNaN(d) ? 0 : d, confidence: result.confidence };
 }
 
 /**

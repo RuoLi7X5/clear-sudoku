@@ -11,7 +11,7 @@
  */
 
 import { OCRResult, OCRCell } from "./board";
-import { matchBigDigit, matchSmallDigit, matchWatermarkDigit, preloadTemplates } from "./template-match";
+import { matchBigDigit, matchSmallDigit, matchWatermarkChar, matchWatermarkDigit, preloadTemplates } from "./template-match";
 
 // ── 图片解码（pngjs，零原生依赖）────────────────────────────────────────────────
 
@@ -463,18 +463,17 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
     let maxDark = 0;
     for (const row of wmPixels) for (const v of row) if (v > maxDark) maxDark = v;
     if (maxDark > 80) {
-      // Multi-size sliding window: 16px font digits are ~6-12px wide
-      // Try 3 window sizes at 2px stride for dense coverage
-      type Match = { x: number; digit: string; conf: number };
+      // Multi-size sliding window: match against 0-9 + a-z + A-Z templates
+      type Match = { x: number; char: string; conf: number };
       const allMatches: Match[] = [];
 
       for (const winW of [8, 10, 12]) {
         for (let x = 0; x + winW <= wmW; x += 2) {
           const winPx: number[][] = [];
           for (let y = 0; y < wmHVal; y++) winPx.push(wmPixels[y].slice(x, x + winW));
-          const result = matchWatermarkDigit(winPx, winW, wmHVal);
+          const result = matchWatermarkChar(winPx, winW, wmHVal);
           if (result.confidence > 0.65) {
-            allMatches.push({ x, digit: String(result.digit), conf: result.confidence });
+            allMatches.push({ x, char: result.char, conf: result.confidence });
           }
         }
       }
@@ -498,7 +497,7 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
       if (picked.length > 1) {
         const bestConf = Math.max(...picked.map(m => m.conf));
         for (let pi = picked.length - 1; pi >= 0; pi--) {
-          if (picked[pi].conf < bestConf * 0.7) picked.splice(pi, 1);
+          if (picked[pi].conf < bestConf * 0.55) picked.splice(pi, 1);
         }
       }
 
@@ -521,13 +520,13 @@ export async function recognizeBoard(imageBuf: Buffer, logger?: any): Promise<OC
             if (midDark / Math.max(1, midTotal) > 0.2) parts.push("-");
           }
         }
-        parts.push(m.digit);
+        parts.push(m.char);
         lastEnd = m.x + 8;
       }
 
       if (parts.length > 0) {
         watermark = parts.join("");
-        if (!/^[\d\-]+$/.test(watermark)) watermark = undefined;
+        if (!/^[\d\-a-zA-Z]+$/.test(watermark)) watermark = undefined;
         if (watermark) logger?.info(`[OCR] 检测到水印: ${watermark}`);
       }
     }

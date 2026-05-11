@@ -178,7 +178,7 @@ export function parseCommand(text: string): ClearInstruction | ParseError {
   if (wmMatch) {
     const raw = wmMatch[1] || "";
     // 只保留数字和连字符
-    const filtered = raw.replace(/[^\d\-]/g, "");
+    const filtered = raw.replace(/[^\d\-a-zA-Z]/g, "");
     if (filtered.length > 0) watermark = filtered;
     trimmed = trimmed.slice(0, wmMatch.index!).trim();
   }
