@@ -1,6 +1,6 @@
 # clear-sudoku 开发进度
 
-## 当前版本：v1.1.0
+## 当前版本：v1.3.2
 
 ## 已完成
 
@@ -64,12 +64,14 @@
 
 ```
 external/clear-sudoku/
-├── package.json (v0.7.0)
+├── package.json (v1.3.2)
 ├── tsconfig.json
-├── templates/
-│   ├── big_1~9.json          (手写大数模板)
+├── templates/ (46 files, ~41MB)
+│   ├── big_1~9.json          (手写大数模板, 150-200样本/数字)
 │   ├── small_1~9.json        (手写候选数模板)
-│   └── digital_1~9.json      (数字模板, 18样本/数字)
+│   ├── digital_1~9.json      (系统字体模板, 179-200样本/数字)
+│   ├── xsudoku_1~9.json      (Xsudoku模板, 1 mean样本/数字)
+│   └── wm_0~9.json           (水印数字模板)
 ├── scripts/
 │   ├── batch-render-test.ts   (批量OCR+渲染测试, 20图)
 │   ├── reocr-test.ts          (二次识别渲染测试)
@@ -77,7 +79,9 @@ external/clear-sudoku/
 │   ├── verify-templates.ts    (模板自匹配验证)
 │   ├── diagnose-reocr.ts      (闭环诊断, 对比答案)
 │   ├── test-watermark.ts      (题号水印闭环测试)
-│   └── calibrate-ink.js       (墨迹阈值校准)
+│   ├── calibrate-ink.js       (墨迹阈值校准)
+│   ├── augment-all-templates.js (三阶段样本扩充)
+│   └── batch-render-435.js     (批量435题识别渲染)
 └── src/
     ├── index.ts               (插件入口)
     ├── board.ts               (BoardState + OCRResult)
@@ -106,5 +110,8 @@ external/clear-sudoku/
 | v0.7.1 | 修复 Koishi `<text>` → `<text:text>` 导致题号被截断 |
 | v1.0.0 | 正式发布：双模板校准(128+225)、求解器冲突保护、模板场景分离 |
 | v1.0.1 | 水印格式改为 #xxx（数字+连字符），淘汰 X题 格式 |
+| v1.3.2 | 模板瘦身(294MB→41MB)：移除68字体族、三阶段样本扩充(150-200/数字)、修复xsudoku均值合并 |
+| v1.3.1 | 二阶大数验证(24×36→48×72)、big_3/big_5样本裁剪、H9 x/435修复 |
+| v1.3.0 | 候选数像素聚类检测(hasBlackPixel)、68字体两遍法选择、手写优先、Claiming求解 |
+| v1.2.0 | 27系统字体模板、自动发现加载、渲染77px |
 | v1.1.0 | 水印闭环：16px红字模板(wm_*.json)、滑动窗口检测、幽灵过滤 |
-| v1.1.0 | 文件结构新增: `scripts/generate-watermark-templates.ts`, `templates/wm_*.json` |
