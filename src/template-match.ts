@@ -268,6 +268,33 @@ export interface MatchResult {
  * 大数字识别
  * @param fontFamily 可选：限定使用的字体族 ("core"=手写+数字+xsudoku, 或 fontTemplates 的 key)
  */
+function matchBigTemplates(pixels: number[][], w: number, h: number): MatchResult {
+  loadTemplates();
+  let bestScore = -1, bestDigit = 0, secondScore = -1, secondDigit = 0;
+  for (const tpl of bigTemplates) {
+    if (tpl.pixels.length === 0) continue;
+    const score = ncc(pixels, tpl);
+    if (score > bestScore) { secondScore = bestScore; secondDigit = bestDigit; bestScore = score; bestDigit = tpl.digit; }
+    else if (score > secondScore && tpl.digit !== bestDigit) { secondScore = score; secondDigit = tpl.digit; }
+  }
+  const bestConf = clamp01((bestScore + 1) / 2);
+  const secondConf = clamp01((secondScore + 1) / 2);
+  if (bestConf < 0.95 && bestConf - secondConf < 0.10 && secondDigit > 0) {
+    const hiIn = scaleTo(pixels, w, h, 48, 72);
+    let hiScore = -1, hiDigit = 0;
+    for (const tpl of bigTemplates) {
+      if (tpl.digit !== bestDigit && tpl.digit !== secondDigit) continue;
+      if (tpl.pixels.length === 0) continue;
+      const hiTpl = scaleTo(tpl.pixels, tpl.w, tpl.h, 48, 72);
+      let s = 0, n = 0; for (const r of hiTpl) for (const v of r) { s += v; n++; }
+      const sc = ncc(hiIn, { digit: tpl.digit, darkCount: 0, w: 48, h: 72, pixels: hiTpl, mean: s / n });
+      if (sc > hiScore) { hiScore = sc; hiDigit = tpl.digit; }
+    }
+    if (hiScore > -1) return { digit: hiDigit, confidence: clamp01((hiScore + 1) / 2) };
+  }
+  return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: bestConf };
+}
+
 export function matchBigDigit(pixels: number[][], w: number, h: number, fontFamily?: string): MatchResult {
   loadTemplates();
 
@@ -277,30 +304,7 @@ export function matchBigDigit(pixels: number[][], w: number, h: number, fontFami
 
   // If "big" requested, only use big (handwritten) templates
   if (fontFamily === "big") {
-    let bestScore = -1, bestDigit = 0;
-    for (const tpl of bigTemplates) {
-      if (tpl.pixels.length === 0) continue;
-      const score = ncc(pixels, tpl);
-      if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
-    }
-    const conf = clamp01((bestScore + 1) / 2);
-    return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: conf };
-  }
-
-  // If a specific font family is requested, only use those templates
-  if (fontFamily && fontFamily !== "core") {
-    const tpls = fontTemplates.get(fontFamily);
-    if (tpls) {
-      let bestScore = -1, bestDigit = 0;
-      for (const tpl of tpls) {
-        if (tpl.pixels.length === 0) continue;
-        const score = ncc(pixels, tpl);
-        if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
-      }
-      const conf = clamp01((bestScore + 1) / 2);
-      return { digit: conf > 0.55 ? bestDigit : 0, confidence: conf };
-    }
-    return { digit: 0, confidence: 0 };
+    return matchBigTemplates(pixels, w, h);
   }
 
   // ── Core mode: 手写优先, 数字补充, xSudoku 兜底 ──
@@ -317,17 +321,30 @@ export function matchBigDigit(pixels: number[][], w: number, h: number, fontFami
   }
 
   // Pass 2: 手写模板 (主力识别, 用户照片核心路径)
-  let bestScore = -1, bestDigit = 0;
-  for (const tpl of bigTemplates) {
-    if (tpl.pixels.length === 0) continue;
-    const score = ncc(pixels, tpl);
-    if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
-  }
-  const bigConf = clamp01((bestScore + 1) / 2);
+  const bigResult = matchBigTemplates(pixels, w, h);
+  const bigConf = bigResult.confidence;
+  let bestScore = (bigConf * 2) - 1; // reverse clamp
+  let bestDigit = bigResult.digit;
 
   // 手写模板有把握 → 直接采信, 不让其他模板抢
   if (bigConf > 0.5) {
-    return { digit: bestScore > 0.1 ? bestDigit : 0, confidence: bigConf };
+    return { digit: bigResult.digit, confidence: bigConf };
+  }
+
+  // If a specific font family is requested, only use those templates
+  if (fontFamily && fontFamily !== "core") {
+    const tpls = fontTemplates.get(fontFamily);
+    if (tpls) {
+      let bestScore = -1, bestDigit = 0;
+      for (const tpl of tpls) {
+        if (tpl.pixels.length === 0) continue;
+        const score = ncc(pixels, tpl);
+        if (score > bestScore) { bestScore = score; bestDigit = tpl.digit; }
+      }
+      const conf = clamp01((bestScore + 1) / 2);
+      return { digit: conf > 0.55 ? bestDigit : 0, confidence: conf };
+    }
+    return { digit: 0, confidence: 0 };
   }
 
   // Pass 3: 手写无把握, 尝试 xSudoku
